@@ -1,0 +1,130 @@
+%Discrete
+clear ; clc; close all;
+omega_R=0.002; omega_L=0.002;
+
+for T = 1:7  % Sampling time
+    ti = 0; % Initial time
+    tf = 100; % Final time
+    td = ti:T:tf; % Discrete time defined
+    tf = td(end); % Due to discrete steps, t_d(end) is not necessarily equal to tf.
+    % That is why we need to recompute tf by assigning t_d(end) to it.
+    sl = length(td); % Number of samples in discrete time frame
+    wR = 0.5*cos(omega_R*td); % Right wheel angular speed
+    wL = sin(omega_L*td); % Left wheel angular speed
+    r = 2; % Radius of wheels [cm]
+    L = 10; % Width of robot [cm]
+    xd = zeros(1,sl); % Vector to store global x[k]
+    yd = zeros(1,sl); % Vector to store global y[k]
+    phd = zeros(1,sl); % Vector to store global \phi[k]
+    xd2 = zeros(1,sl); % Vector to store global x[k]
+    yd2 = zeros(1,sl); % Vector to store global y[k]
+    phd2 = zeros(1,sl); % Vector to store global \phi[k]
+    xd3 = zeros(1,sl); % Vector to store global x[k]
+    yd3 = zeros(1,sl); % Vector to store global y[k]
+    phd3 = zeros(1,sl); % Vector to store global \phi[k]
+    xd4 = zeros(1,sl); % Vector to store global x[k]
+    yd4 = zeros(1,sl); % Vector to store global y[k]
+    phd4 = zeros(1,sl); % Vector to store global \phi[k]
+    for ii=1:sl-1 % note that we need to run this loop for one less iteration because
+        % the pose quantities have argument (ii+1) not (ii)
+        vR=r*wR(ii);
+        vL=r*wL(ii);
+        v=(vR+vL)/2;
+        w=(vR-vL)/L;
+        dph=T*w;
+        %Model 1 - Rectangular Integration
+        xd(ii+1)=xd(ii)+v*T*cos(phd(ii));
+        yd(ii+1)=yd(ii)+v*T*sin(phd(ii));
+        phd(ii+1)=phd(ii)+dph;
+        %Model 2 - Trapezoidal Integration
+        xd2(ii+1)=xd2(ii)+(v*T*0.5)*(cos(phd2(ii))+cos(phd2(ii)+dph));
+        yd2(ii+1)=yd2(ii)+(v*T*0.5)*(sin(phd2(ii))+sin(phd2(ii)+dph));
+        phd2(ii+1)=phd2(ii)+dph;
+        %Model 3 - Exact Integration
+        xd3(ii+1)=xd3(ii)+(v/w)*(sin(phd3(ii)+dph)-sin(phd3(ii)));
+        yd3(ii+1)=yd3(ii)-(v/w)*(cos(phd3(ii)+dph)-cos(phd3(ii)));
+        phd3(ii+1)=phd(ii)+dph;
+        %Model 4 - Geometrical Model I
+        xd4(ii+1)=xd4(ii)+v*T*cos(phd4(ii)+(dph/2));
+        yd4(ii+1)=yd4(ii)+v*T*sin(phd4(ii)+(dph/2));
+        phd4(ii+1)=phd4(ii)+dph;
+    end
+    %subplot(2,4,T)
+    figure,plot(xd,yd,'ks:','linewidth',2);
+    hold on;
+    plot(xd2,yd2,'gs:','linewidth',2);
+    hold on;
+    plot(xd3,yd3,'rs:','linewidth',2);
+    hold on;
+    plot(xd4,yd4,'bs:','linewidth',2);
+    hold on;
+    xlabel('x(t)');
+    ylabel('y(t)');
+    
+    %Continuous
+    dt = 0.01; % Time increment for continuous scenario
+    tc = ti:dt:tf; % Continuous time (CT) frame
+    wR = 0.5*cos(omega_L*tc); % Right wheel angular speed
+    wL = sin(omega_R*tc); % Left wheel angular speed
+    sl = length(tc); % Number of steps in CT simulation
+    xc = zeros(1,sl); % Vector to store CT x(t)
+    yc = zeros(1,sl); % Vector to store CT y(t)
+    phc = zeros(1,sl); % % Vector to store CT \phi(t)
+    for ii=1:sl-1 % <= one less simulation for the reason mentioned above
+        vR=r*wR(ii);
+        vL=r*wL(ii);
+        v=(vR+vL)/2;
+        w=(vR-vL)/L;
+        dph=dt*w;
+        xc(ii+1)=xc(ii)+v*dt*cos(phc(ii));
+        yc(ii+1)=yc(ii)+v*dt*sin(phc(ii));
+        phc(ii+1)=phc(ii)+dph;
+    end
+    plot(xc,yc,'k','linewidth',1)
+    legend(['Rect. Int. Model: T = ' num2str(T)] , ['Trap. Int. Model: T = ' num2str(T)] , ['Exact Int. Model: T = ' num2str(T)] , ['Geometrical Model I : T = ' num2str(T)] , ['Continuous Model: dt = ' num2str(dt)])
+    
+    errorx1 = xd - xc(round(linspace(1,length(xc),length(xd))));
+    errory1 = yd - yc(round(linspace(1,length(yc),length(yd))));
+    errorx2 = xd2 - xc(round(linspace(1,length(xc),length(xd2))));
+    errory2 = yd2 - yc(round(linspace(1,length(yc),length(yd2))));
+    errorx3 = xd3 - xc(round(linspace(1,length(xc),length(xd3))));
+    errory3 = yd3 - yc(round(linspace(1,length(yc),length(yd3))));
+    errorx4 = xd4 - xc(round(linspace(1,length(xc),length(xd4))));
+    errory4 = yd4 - yc(round(linspace(1,length(yc),length(yd4))));
+    
+    m1erx(T) = (sum((errorx1).^2))/length(xd);
+    m2erx(T) = (sum((errorx2).^2))/length(xd2);
+    m3erx(T) = (sum((errorx3).^2))/length(xd3);
+    m4erx(T) = (sum((errorx4).^2))/length(xd4);
+    
+    m1ery(T) = (sum((errory1).^2))/length(yd);
+    m2ery(T) = (sum((errory2).^2))/length(yd2);
+    m3ery(T) = (sum((errory3).^2))/length(yd3);
+    m4ery(T) = (sum((errory4).^2))/length(yd4);
+    
+end
+T = 1:7;
+%subplot(2,4,8)
+figure, plot(T,m1erx,'ks:','linewidth',2);
+hold on;
+plot(T,m2erx,'gs:','linewidth',2);
+hold on;
+plot(T,m3erx,'rs:','linewidth',2);
+hold on;
+plot(T,m4erx,'bs:','linewidth',2);
+hold on;
+xlabel('T(s)');
+ylabel('Average sum of squared errors in x(t)');
+legend('Rect. Int. Model' , 'Trap. Int. Model' , 'Exact Int. Model' , 'Geometrical Model I' )
+
+figure, plot(T,m1ery,'ks:','linewidth',2);
+hold on;
+plot(T,m2ery,'gs:','linewidth',2);
+hold on;
+plot(T,m3ery,'rs:','linewidth',2);
+hold on;
+plot(T,m4ery,'bs:','linewidth',2);
+hold on;
+xlabel('T(s)');
+ylabel('Average sum of squared errors in y(t)');
+legend('Rect. Int. Model' , 'Trap. Int. Model' , 'Exact Int. Model' , 'Geometrical Model I' )
